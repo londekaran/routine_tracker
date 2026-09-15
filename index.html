@@ -175,6 +175,7 @@
   .modal-btn.primary{background:var(--ink);color:#fff;border-color:var(--ink);}
   .modal-btn.danger{color:var(--evening);}
   .modal input[type=text]{width:100%;border:1px solid var(--line);border-radius:7px;padding:10px;font-family:inherit;font-size:13.5px;margin-bottom:10px;color:var(--text);}
+  .code-block{background:var(--paper-2);border-radius:7px;padding:10px;font-size:11px;line-height:1.5;white-space:pre-wrap;word-break:break-word;color:var(--text);margin:0 0 12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;}
   .modal-status{font-size:12.5px;color:var(--work);margin-top:10px;min-height:16px;}
   .modal-close{margin-top:14px;background:none;border:none;color:var(--text-soft);font-size:13px;cursor:pointer;text-decoration:underline;}
   .connected-badge{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--work);margin-bottom:14px;}
@@ -300,35 +301,19 @@
   }
 
   /* ---------- sheet relay ---------- */
-  function parseFormLink(url){
+  function parseWebAppUrl(url){
     var u;
     try{ u = new URL(url); }catch(e){ return null; }
-    if(u.pathname.indexOf('/forms/') === -1) return null;
-    var actionPath = u.pathname.replace('viewform','formResponse');
-    var action = u.origin + actionPath;
-    var tokens = {DATE_HERE:'date',TIME_HERE:'time',PHASE_HERE:'phase',TASK_HERE:'task',SCHEDTIME_HERE:'schedtime',STATUS_HERE:'status',TYPE_HERE:'type'};
-    var fields = {};
-    u.searchParams.forEach(function(value,key){
-      if(key.indexOf('entry.')===0 && tokens[value]){ fields[tokens[value]] = key; }
-    });
-    var need = ['date','time','phase','task','schedtime','status','type'];
-    for(var i=0;i<need.length;i++){ if(!fields[need[i]]) return null; }
-    return {action:action, fields:fields};
+    if(u.hostname !== 'script.google.com') return null;
+    if(u.pathname.indexOf('/macros/') === -1) return null;
+    if(!/\/exec\/?$/.test(u.pathname)) return null;
+    return {url: u.toString()};
   }
 
   function logEvent(evt){
     if(!state.syncConfig) return;
     try{
-      var body = new URLSearchParams();
-      var f = state.syncConfig.fields;
-      body.append(f.date, evt.date);
-      body.append(f.time, evt.time);
-      body.append(f.phase, evt.phase);
-      body.append(f.task, evt.task);
-      body.append(f.schedtime, evt.schedtime);
-      body.append(f.status, evt.status);
-      body.append(f.type, evt.type);
-      fetch(state.syncConfig.action, {method:'POST', mode:'no-cors', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: body.toString()});
+      fetch(state.syncConfig.url, {method:'POST', mode:'no-cors', body: JSON.stringify(evt)});
     }catch(e){ console.error('sync failed', e); }
   }
 
@@ -357,6 +342,7 @@
     var task = SCHEDULE.filter(function(t){return t.id===id;})[0];
     var newVal = !state.dayData.checks[id];
     state.dayData.checks[id] = newVal;
+    state.weekData = null;
     render();
     await saveDay(dateKey(state.currentDate), state.dayData);
     if(task) logEvent({date:dateKey(state.currentDate), time:timeNow(new Date()), phase:task.phase, task:task.label, schedtime:task.start+'\u2013'+task.end, status:newVal?'Checked':'Unchecked', type:'Routine'});
@@ -369,6 +355,7 @@
     if(!text) return;
     state.dayData.extra.push({id:'e'+Date.now(), text:text, done:false});
     input.value='';
+    state.weekData = null;
     render();
     await saveDay(dateKey(state.currentDate), state.dayData);
     logEvent({date:dateKey(state.currentDate), time:timeNow(new Date()), phase:'Work', task:text, schedtime:'', status:'Added', type:'Extra'});
@@ -377,6 +364,7 @@
   async function toggleExtra(id){
     var item = state.dayData.extra.find(function(t){return t.id===id;});
     if(item){ item.done = !item.done; }
+    state.weekData = null;
     render();
     await saveDay(dateKey(state.currentDate), state.dayData);
     if(item) logEvent({date:dateKey(state.currentDate), time:timeNow(new Date()), phase:'Work', task:item.text, schedtime:'', status:item.done?'Checked':'Unchecked', type:'Extra'});
@@ -384,6 +372,7 @@
 
   async function deleteExtra(id){
     state.dayData.extra = state.dayData.extra.filter(function(t){return t.id!==id;});
+    state.weekData = null;
     render();
     await saveDay(dateKey(state.currentDate), state.dayData);
   }
@@ -391,6 +380,7 @@
   async function resetDay(){
     if(!confirm('Clear all checks and tasks for '+fmtHeaderDate(state.currentDate)+'?')) return;
     state.dayData = {checks:{}, extra:[]};
+    state.weekData = null;
     render();
     try{ await window.storage.delete('day:'+dateKey(state.currentDate), false); }catch(e){}
   }
@@ -517,9 +507,9 @@
   async function connectSync(){
     var input = document.getElementById('sync-link-input');
     var link = input ? input.value.trim() : '';
-    var parsed = parseFormLink(link);
+    var parsed = parseWebAppUrl(link);
     if(!parsed){
-      state.modalStatus = "Couldn't read that link — make sure it's the full pre-filled link with all 7 placeholders filled in.";
+      state.modalStatus = "Couldn't read that link — make sure it's the Web App URL ending in /exec, from Deploy \u2192 Manage deployments.";
       render(); return;
     }
     state.syncConfig = parsed;
@@ -670,8 +660,9 @@
       }
       return '<div class="modal-overlay" id="modalOverlay"><div class="modal">'+
         '<h3>Connect to a Sheet</h3>'+
-        '<p>Paste the pre-filled link from your Google Form (see the setup steps) and this wires itself up.</p>'+
-        '<input type="text" id="sync-link-input" placeholder="https://docs.google.com/forms/d/e/.../viewform?...">'+
+        '<p>One-time setup: open a Google Sheet \u2192 Extensions \u2192 Apps Script, paste in the small script below, then Deploy \u2192 New deployment \u2192 Web app (Execute as: Me, Who has access: Anyone). Paste the resulting URL (ends in <code>/exec</code>) here.</p>'+
+        '<pre class="code-block">function doPost(e){\n  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();\n  var d = JSON.parse(e.postData.contents);\n  sheet.appendRow([d.date, d.time, d.phase, d.task, d.schedtime, d.status, d.type]);\n  return ContentService.createTextOutput(\'OK\');\n}</pre>'+
+        '<input type="text" id="sync-link-input" placeholder="https://script.google.com/macros/s/…/exec">'+
         '<div class="modal-actions"><button class="modal-btn primary" id="connectSync">Connect</button></div>'+
         '<div class="modal-status">'+escapeHtml(state.modalStatus)+'</div>'+
         '<button class="modal-close" id="closeModal">Close</button></div></div>';
