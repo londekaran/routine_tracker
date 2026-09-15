@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Routine — Daily Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#20222B;
+    --ink-2:#2B2E3B;
+    --paper:#EDE9DD;
+    --paper-2:#E3DECE;
+    --line:#CBC4AE;
+    --text:#2B2A26;
+    --text-soft:#716C5E;
+    --text-on-ink:#ECE9E0;
+    --text-on-ink-soft:#A6A2B4;
+    --morning:#D9902F;
+    --work:#2E6E8E;
+    --evening:#B85C4E;
+    --night:#4A4787;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--text);
+    font-family:'IBM Plex Sans', sans-serif;
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing:antialiased;
+  }
+  #app{max-width:640px;margin:0 auto;min-height:100vh;background:var(--paper);}
+
+  /* ---- Header / arc ---- */
+  .hero{background:var(--ink);color:var(--text-on-ink);padding:22px 20px 20px;}
+  .hero-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:10px;flex-wrap:wrap;}
+  .date-nav{display:flex;align-items:center;gap:10px;}
+  .nav-btn{
+    background:none;border:1px solid rgba(236,233,224,0.25);color:var(--text-on-ink);
+    width:30px;height:30px;border-radius:50%;font-size:15px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;line-height:1;
+    transition:background .15s ease;
+  }
+  .nav-btn:hover{background:rgba(236,233,224,0.12);}
+  .nav-btn:focus-visible{outline:2px solid #fff;outline-offset:2px;}
+  .date-label{font-family:'Fraunces',serif;font-size:19px;font-weight:500;}
+  .hero-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .util-pill{
+    font-size:12.5px;color:var(--text-on-ink-soft);background:rgba(236,233,224,0.1);
+    border:1px solid rgba(236,233,224,0.2);padding:5px 11px;border-radius:20px;cursor:pointer;
+    display:flex;align-items:center;gap:5px;
+  }
+  .util-pill:hover{color:var(--text-on-ink);}
+  .sync-dot{width:6px;height:6px;border-radius:50%;background:rgba(236,233,224,0.35);}
+  .sync-dot.on{background:#8FD9A8;}
+
+  .arc{position:relative;height:10px;border-radius:5px;overflow:hidden;display:flex;margin-bottom:8px;}
+  .arc-seg{height:100%;}
+  .arc-now{
+    position:absolute;top:-4px;width:2px;height:18px;background:#fff;
+    box-shadow:0 0 0 3px rgba(255,255,255,0.18);border-radius:2px;
+  }
+  .arc-ticks{display:flex;justify-content:space-between;font-size:11px;color:var(--text-on-ink-soft);margin-bottom:18px;}
+
+  .hero-stat{display:flex;align-items:baseline;gap:14px;}
+  .hero-stat .num{font-family:'Fraunces',serif;font-size:46px;font-weight:600;line-height:1;}
+  .hero-stat .sub{font-size:13.5px;color:var(--text-on-ink-soft);}
+
+  /* ---- Tabs ---- */
+  .tabs{display:flex;gap:4px;padding:14px 20px 0;border-bottom:1px solid var(--line);background:var(--paper);}
+  .tab{
+    background:none;border:none;font-size:14.5px;
+    color:var(--text-soft);padding:10px 4px;margin-right:22px;cursor:pointer;
+    border-bottom:2px solid transparent;position:relative;top:1px;
+  }
+  .tab.active{color:var(--text);border-bottom-color:var(--ink);font-weight:600;}
+
+  /* ---- Day view ---- */
+  .day-view{padding:6px 20px 60px;}
+  .phase{margin-top:26px;}
+  .phase-head{display:flex;align-items:baseline;gap:10px;margin-bottom:6px;}
+  .phase-dot{width:9px;height:9px;border-radius:50%;flex:none;}
+  .phase-name{font-family:'Fraunces',serif;font-size:19px;font-weight:500;}
+  .phase-range{font-size:12.5px;color:var(--text-soft);}
+
+  .task-item{border-top:1px solid var(--line);}
+  .task-item:last-child{border-bottom:1px solid var(--line);}
+  .task-row{
+    display:flex;align-items:flex-start;gap:12px;padding:12px 2px;cursor:pointer;
+  }
+  .task-time{
+    flex:none;width:88px;font-size:12.5px;color:var(--text-soft);padding-top:2px;
+  }
+  .checkbox-wrap{position:relative;flex:none;margin-top:1px;}
+  .checkbox-wrap input{
+    position:absolute;opacity:0;width:20px;height:20px;margin:0;cursor:pointer;
+  }
+  .box{
+    display:block;width:20px;height:20px;border-radius:50%;
+    border:1.5px solid var(--text-soft);position:relative;transition:background .15s,border-color .15s;
+  }
+  .box::after{
+    content:'';position:absolute;left:6px;top:2.5px;width:5px;height:9px;
+    border-right:2px solid #fff;border-bottom:2px solid #fff;transform:rotate(40deg);
+    opacity:0;
+  }
+  .checkbox-wrap input:checked + .box::after{opacity:1;}
+  .checkbox-wrap input:focus-visible + .box{outline:2px solid var(--ink);outline-offset:2px;}
+  .task-text{font-size:15px;line-height:1.4;padding-top:1px;}
+  .task-item.done .task-text{color:var(--text-soft);text-decoration:line-through;text-decoration-color:var(--line);}
+
+  .today-tasks{margin:0 0 14px 100px;padding:10px 12px;background:var(--paper-2);border-radius:8px;}
+  .today-tasks-empty{font-size:13px;color:var(--text-soft);margin-bottom:8px;}
+  .extra-list{list-style:none;margin:0 0 8px;padding:0;}
+  .extra-item{display:flex;align-items:center;gap:10px;padding:6px 0;}
+  .extra-item .task-text{font-size:14px;}
+  .extra-item.done .task-text{color:var(--text-soft);text-decoration:line-through;text-decoration-color:var(--line);}
+  .extra-del{
+    margin-left:auto;background:none;border:none;color:var(--text-soft);cursor:pointer;
+    font-size:16px;padding:2px 6px;line-height:1;
+  }
+  .extra-del:hover{color:var(--evening);}
+  .add-extra{display:flex;gap:8px;margin-top:2px;}
+  .add-extra input{
+    flex:1;border:1px solid var(--line);background:#fff;border-radius:6px;padding:8px 10px;
+    font-family:inherit;font-size:14px;color:var(--text);
+  }
+  .add-extra input:focus-visible{outline:2px solid var(--ink);outline-offset:1px;}
+  .add-extra button{
+    background:var(--ink);color:var(--text-on-ink);border:none;border-radius:6px;
+    padding:0 16px;font-size:14px;cursor:pointer;
+  }
+  .add-extra button:hover{opacity:.9;}
+
+  .reset-row{margin-top:30px;text-align:center;}
+  .reset-link{
+    background:none;border:none;color:var(--text-soft);font-size:13px;
+    text-decoration:underline;text-decoration-color:var(--line);cursor:pointer;
+  }
+  .reset-link:hover{color:var(--evening);}
+
+  /* ---- Week view ---- */
+  .week-view{padding:20px 20px 60px;}
+  .week-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;}
+  .week-title{font-family:'Fraunces',serif;font-size:19px;font-weight:500;}
+  .week-cols{display:flex;gap:8px;align-items:flex-end;height:140px;margin-bottom:8px;}
+  .week-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;}
+  .week-bar-track{flex:1;width:100%;display:flex;align-items:flex-end;justify-content:center;}
+  .week-bar{width:60%;border-radius:4px 4px 0 0;background:var(--work);min-height:2px;transition:height .2s;}
+  .week-col.future .week-bar{background:var(--line);}
+  .week-pct{font-size:12px;color:var(--text-soft);margin-top:8px;}
+  .week-day{font-size:12.5px;font-weight:600;margin-top:2px;}
+  .week-col.is-today .week-day{color:var(--work);}
+
+  .consistency{margin-top:32px;}
+  .consistency-title{font-family:'Fraunces',serif;font-size:17px;font-weight:500;margin-bottom:14px;}
+  .c-row{display:flex;align-items:center;gap:12px;padding:8px 0;border-top:1px solid var(--line);}
+  .c-row:last-child{border-bottom:1px solid var(--line);}
+  .c-label{flex:1;font-size:13.5px;}
+  .c-track{width:90px;height:6px;background:var(--paper-2);border-radius:3px;overflow:hidden;flex:none;}
+  .c-fill{height:100%;background:var(--night);}
+  .c-count{font-size:12px;color:var(--text-soft);width:34px;text-align:right;flex:none;}
+
+  .loading{padding:60px 20px;text-align:center;color:var(--text-soft);font-size:14px;}
+
+  /* ---- Modal ---- */
+  .modal-overlay{position:fixed;inset:0;background:rgba(32,34,43,0.45);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50;}
+  .modal{background:#fff;border-radius:12px;max-width:380px;width:100%;padding:22px;max-height:85vh;overflow-y:auto;}
+  .modal h3{font-family:'Fraunces',serif;font-size:18px;margin:0 0 8px;color:var(--text);}
+  .modal p{font-size:13px;color:var(--text-soft);margin:0 0 14px;line-height:1.5;}
+  .modal-actions{display:flex;flex-direction:column;gap:9px;}
+  .modal-btn{padding:11px;border-radius:7px;border:1px solid var(--line);background:var(--paper);font-size:13.5px;cursor:pointer;text-align:left;font-family:inherit;color:var(--text);}
+  .modal-btn.primary{background:var(--ink);color:#fff;border-color:var(--ink);}
+  .modal-btn.danger{color:var(--evening);}
+  .modal input[type=text]{width:100%;border:1px solid var(--line);border-radius:7px;padding:10px;font-family:inherit;font-size:13.5px;margin-bottom:10px;color:var(--text);}
+  .modal-status{font-size:12.5px;color:var(--work);margin-top:10px;min-height:16px;}
+  .modal-close{margin-top:14px;background:none;border:none;color:var(--text-soft);font-size:13px;cursor:pointer;text-decoration:underline;}
+  .connected-badge{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--work);margin-bottom:14px;}
+  .connected-badge .sync-dot{background:var(--work);}
+
+  @media (max-width:420px){
+    .hero{padding:18px 16px;}
+    .day-view,.week-view{padding-left:16px;padding-right:16px;}
+    .today-tasks{margin-left:0;}
+    .task-time{width:70px;font-size:11.5px;}
+    .hero-stat .num{font-size:38px;}
+  }
+</style>
+</head>
+<body>
+<div id="app"><div class="loading">Loading your routine…</div></div>
+
+<script>
+(function(){
+
+  var SCHEDULE = [
+    {id:'1',phase:'Morning',start:'06:00',end:'06:30',label:'Get up'},
+    {id:'2',phase:'Morning',start:'06:30',end:'08:00',label:'RSS'},
+    {id:'3',phase:'Morning',start:'08:00',end:'09:00',label:'Breakfast (2 boiled eggs, 1 banana)'},
+    {id:'4',phase:'Morning',start:'08:00',end:'09:00',label:'Bath'},
+    {id:'5',phase:'Morning',start:'08:00',end:'09:00',label:'Pooja'},
+    {id:'6',phase:'Morning',start:'08:00',end:'09:00',label:'Read a book'},
+    {id:'7',phase:'Morning',start:'09:00',end:'10:00',label:'Light breakfast (meal 2)'},
+    {id:'8',phase:'Work',start:'10:00',end:'10:30',label:'Log in'},
+    {id:'9',phase:'Work',start:'10:00',end:'10:30',label:"Standup (plan today's tasks)",schedulable:true},
+    {id:'10',phase:'Work',start:'10:30',end:'11:00',label:'Follow ups (IndiaMart, GeM, mail & website)'},
+    {id:'11',phase:'Work',start:'11:00',end:'14:00',label:'Completing tasks'},
+    {id:'12',phase:'Work',start:'14:00',end:'15:00',label:'Follow ups (IndiaMart, GeM, mail & website)'},
+    {id:'13',phase:'Work',start:'14:00',end:'15:00',label:'Lunch'},
+    {id:'14',phase:'Work',start:'15:00',end:'18:00',label:'Completing tasks'},
+    {id:'15',phase:'Work',start:'18:00',end:'19:00',label:'Follow ups (IndiaMart, GeM, mail & website)'},
+    {id:'16',phase:'Work',start:'18:00',end:'19:00',label:"Wrap-up (review today's work)"},
+    {id:'17',phase:'Evening',start:'19:00',end:'21:00',label:'Workout'},
+    {id:'18',phase:'Evening',start:'19:00',end:'21:00',label:'Leisure / fun'},
+    {id:'19',phase:'Night',start:'21:00',end:'23:00',label:'YouTube'},
+    {id:'20',phase:'Night',start:'21:00',end:'23:00',label:'Kāla Siddhānta book'},
+    {id:'21',phase:'Night',start:'21:00',end:'23:00',label:'Dinner'},
+    {id:'22',phase:'Night',start:'21:00',end:'23:00',label:'Walking'},
+    {id:'23',phase:'Night',start:'23:00',end:'23:30',label:'Journaling'},
+    {id:'24',phase:'Night',start:'23:00',end:'23:30',label:'Plan for tomorrow'},
+    {id:'25',phase:'Night',start:'00:00',end:'06:00',label:'Sleep'}
+  ];
+  var PHASES = ['Morning','Work','Evening','Night'];
+  var PHASE_COLOR = {Morning:'var(--morning)',Work:'var(--work)',Evening:'var(--evening)',Night:'var(--night)'};
+  var ARC_SEGMENTS = [
+    {from:0,to:360,color:'var(--night)'},
+    {from:360,to:600,color:'var(--morning)'},
+    {from:600,to:1140,color:'var(--work)'},
+    {from:1140,to:1260,color:'var(--evening)'},
+    {from:1260,to:1440,color:'var(--night)'}
+  ];
+  var DAY_LABELS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+
+  var state = {
+    view:'day',
+    currentDate: new Date(),
+    dayData: {checks:{}, extra:[]},
+    weekAnchor: new Date(),
+    weekData: null,
+    loading:true,
+    modal:null,
+    modalStatus:'',
+    syncConfig:null
+  };
+
+  function pad(n){return n<10?'0'+n:''+n;}
+  function dateKey(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
+  function timeNow(d){return pad(d.getHours())+':'+pad(d.getMinutes());}
+  function toMinutes(t){var p=t.split(':');return parseInt(p[0],10)*60+parseInt(p[1],10);}
+  function sameDate(a,b){return dateKey(a)===dateKey(b);}
+  function fmtHeaderDate(d){
+    var days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return days[d.getDay()]+', '+d.getDate()+' '+months[d.getMonth()];
+  }
+  function startOfWeek(d){
+    var day = d.getDay();
+    var diff = (day===0?-6:1-day);
+    var m = new Date(d);
+    m.setDate(d.getDate()+diff);
+    m.setHours(0,0,0,0);
+    return m;
+  }
+  function escapeHtml(s){
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  /* ---------- storage ---------- */
+  async function loadDay(key){
+    try{
+      var res = await window.storage.get('day:'+key, false);
+      if(res && res.value){
+        var parsed = JSON.parse(res.value);
+        return {checks: parsed.checks||{}, extra: parsed.extra||[]};
+      }
+    }catch(e){ /* no record yet for this day */ }
+    return {checks:{}, extra:[]};
+  }
+
+  async function saveDay(key, data){
+    try{
+      await window.storage.set('day:'+key, JSON.stringify(data), false);
+    }catch(e){ console.error('Could not save', e); }
+  }
+
+  async function loadSyncConfig(){
+    try{
+      var res = await window.storage.get('sync-config', false);
+      if(res && res.value) return JSON.parse(res.value);
+    }catch(e){}
+    return null;
+  }
+  async function saveSyncConfig(cfg){
+    try{ await window.storage.set('sync-config', JSON.stringify(cfg), false); }catch(e){}
+  }
+  async function clearSyncConfig(){
+    try{ await window.storage.delete('sync-config', false); }catch(e){}
+  }
+
+  /* ---------- sheet relay ---------- */
+  function parseFormLink(url){
+    var u;
+    try{ u = new URL(url); }catch(e){ return null; }
+    if(u.pathname.indexOf('/forms/') === -1) return null;
+    var actionPath = u.pathname.replace('viewform','formResponse');
+    var action = u.origin + actionPath;
+    var tokens = {DATE_HERE:'date',TIME_HERE:'time',PHASE_HERE:'phase',TASK_HERE:'task',SCHEDTIME_HERE:'schedtime',STATUS_HERE:'status',TYPE_HERE:'type'};
+    var fields = {};
+    u.searchParams.forEach(function(value,key){
+      if(key.indexOf('entry.')===0 && tokens[value]){ fields[tokens[value]] = key; }
+    });
+    var need = ['date','time','phase','task','schedtime','status','type'];
+    for(var i=0;i<need.length;i++){ if(!fields[need[i]]) return null; }
+    return {action:action, fields:fields};
+  }
+
+  function logEvent(evt){
+    if(!state.syncConfig) return;
+    try{
+      var body = new URLSearchParams();
+      var f = state.syncConfig.fields;
+      body.append(f.date, evt.date);
+      body.append(f.time, evt.time);
+      body.append(f.phase, evt.phase);
+      body.append(f.task, evt.task);
+      body.append(f.schedtime, evt.schedtime);
+      body.append(f.status, evt.status);
+      body.append(f.type, evt.type);
+      fetch(state.syncConfig.action, {method:'POST', mode:'no-cors', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: body.toString()});
+    }catch(e){ console.error('sync failed', e); }
+  }
+
+  async function initDay(){
+    state.loading = true;
+    render();
+    var key = dateKey(state.currentDate);
+    state.dayData = await loadDay(key);
+    state.loading = false;
+    render();
+  }
+
+  async function changeDay(delta){
+    var d = new Date(state.currentDate);
+    d.setDate(d.getDate()+delta);
+    state.currentDate = d;
+    await initDay();
+  }
+
+  async function goToday(){
+    state.currentDate = new Date();
+    await initDay();
+  }
+
+  async function toggleFixed(id){
+    var task = SCHEDULE.filter(function(t){return t.id===id;})[0];
+    var newVal = !state.dayData.checks[id];
+    state.dayData.checks[id] = newVal;
+    render();
+    await saveDay(dateKey(state.currentDate), state.dayData);
+    if(task) logEvent({date:dateKey(state.currentDate), time:timeNow(new Date()), phase:task.phase, task:task.label, schedtime:task.start+'\u2013'+task.end, status:newVal?'Checked':'Unchecked', type:'Routine'});
+  }
+
+  async function addExtra(taskId){
+    var input = document.getElementById('extra-input-'+taskId);
+    if(!input) return;
+    var text = input.value.trim();
+    if(!text) return;
+    state.dayData.extra.push({id:'e'+Date.now(), text:text, done:false});
+    input.value='';
+    render();
+    await saveDay(dateKey(state.currentDate), state.dayData);
+    logEvent({date:dateKey(state.currentDate), time:timeNow(new Date()), phase:'Work', task:text, schedtime:'', status:'Added', type:'Extra'});
+  }
+
+  async function toggleExtra(id){
+    var item = state.dayData.extra.find(function(t){return t.id===id;});
+    if(item){ item.done = !item.done; }
+    render();
+    await saveDay(dateKey(state.currentDate), state.dayData);
+    if(item) logEvent({date:dateKey(state.currentDate), time:timeNow(new Date()), phase:'Work', task:item.text, schedtime:'', status:item.done?'Checked':'Unchecked', type:'Extra'});
+  }
+
+  async function deleteExtra(id){
+    state.dayData.extra = state.dayData.extra.filter(function(t){return t.id!==id;});
+    render();
+    await saveDay(dateKey(state.currentDate), state.dayData);
+  }
+
+  async function resetDay(){
+    if(!confirm('Clear all checks and tasks for '+fmtHeaderDate(state.currentDate)+'?')) return;
+    state.dayData = {checks:{}, extra:[]};
+    render();
+    try{ await window.storage.delete('day:'+dateKey(state.currentDate), false); }catch(e){}
+  }
+
+  async function switchView(v){
+    state.view = v;
+    if(v==='week' && !state.weekData){
+      await loadWeek();
+    } else {
+      render();
+    }
+  }
+
+  async function changeWeek(delta){
+    var d = new Date(state.weekAnchor);
+    d.setDate(d.getDate()+7*delta);
+    state.weekAnchor = d;
+    state.weekData = null;
+    await loadWeek();
+  }
+
+  async function loadWeek(){
+    state.loading = true;
+    render();
+    var start = startOfWeek(state.weekAnchor);
+    var days = [];
+    for(var i=0;i<7;i++){
+      var d = new Date(start);
+      d.setDate(start.getDate()+i);
+      days.push(d);
+    }
+    var results = await Promise.all(days.map(function(d){return loadDay(dateKey(d));}));
+    var today = new Date();
+    var weekDays = days.map(function(d, i){
+      var data = results[i];
+      var fixedTotal = SCHEDULE.length;
+      var fixedChecked = Object.keys(data.checks).filter(function(k){return data.checks[k];}).length;
+      var extraTotal = data.extra.length;
+      var extraChecked = data.extra.filter(function(t){return t.done;}).length;
+      var total = fixedTotal+extraTotal;
+      var pct = total? Math.round((fixedChecked+extraChecked)/total*100) : 0;
+      var isFuture = d > today && !sameDate(d, today);
+      return {date:d, pct: isFuture?null:pct, checks:data.checks, isToday: sameDate(d,today), isFuture: isFuture};
+    });
+    var taskCounts = SCHEDULE.map(function(task){
+      var count = weekDays.filter(function(wd){return !wd.isFuture && wd.checks[task.id];}).length;
+      var elapsed = weekDays.filter(function(wd){return !wd.isFuture;}).length || 1;
+      return {label:task.label, count:count, elapsed:elapsed};
+    });
+    state.weekData = {days:weekDays, taskCounts:taskCounts, start:start};
+    state.loading = false;
+    render();
+  }
+
+  function computeTodayStats(){
+    var fixedTotal = SCHEDULE.length;
+    var fixedChecked = Object.keys(state.dayData.checks).filter(function(k){return state.dayData.checks[k];}).length;
+    var extraTotal = state.dayData.extra.length;
+    var extraChecked = state.dayData.extra.filter(function(t){return t.done;}).length;
+    var total = fixedTotal+extraTotal;
+    var done = fixedChecked+extraChecked;
+    var pct = total? Math.round(done/total*100) : 0;
+    return {pct:pct, done:done, total:total};
+  }
+
+  /* ---------- export ---------- */
+  async function gatherAllDays(){
+    var keys=[];
+    try{ var res = await window.storage.list('day:', false); if(res && res.keys) keys=res.keys; }catch(e){}
+    keys.sort();
+    var rows=[];
+    for(var i=0;i<keys.length;i++){
+      var dateStr = keys[i].replace(/^day:/,'');
+      var data = await loadDay(dateStr);
+      rows.push({date:dateStr, data:data});
+    }
+    return rows;
+  }
+  function buildTable(rows){
+    var header = ['Date','Completion %','Done','Total'].concat(SCHEDULE.map(function(t){return t.start+' '+t.label;})).concat(['Extra tasks']);
+    var body = rows.map(function(r){
+      var fixedTotal=SCHEDULE.length;
+      var fixedChecked=Object.keys(r.data.checks).filter(function(k){return r.data.checks[k];}).length;
+      var extraTotal=r.data.extra.length, extraChecked=r.data.extra.filter(function(t){return t.done;}).length;
+      var total=fixedTotal+extraTotal, done=fixedChecked+extraChecked;
+      var pct= total?Math.round(done/total*100):0;
+      var cols = [r.date, pct, done, total].concat(SCHEDULE.map(function(t){return r.data.checks[t.id]?1:0;}));
+      var extraSummary = r.data.extra.map(function(t){return (t.done?'[x] ':'[ ] ')+t.text;}).join('; ');
+      cols.push(extraSummary);
+      return cols;
+    });
+    return {header:header, body:body};
+  }
+  function toCsvField(v){ v=String(v); if(/[",\n]/.test(v)){ v='"'+v.replace(/"/g,'""')+'"'; } return v; }
+  function toTsvField(v){ return String(v).replace(/\t/g,' ').replace(/\n/g,' '); }
+
+  async function downloadCsv(){
+    state.modalStatus = 'Preparing…'; render();
+    var rows = await gatherAllDays();
+    var t = buildTable(rows);
+    var lines = [t.header.map(toCsvField).join(',')].concat(t.body.map(function(r){return r.map(toCsvField).join(',');}));
+    var blob = new Blob([lines.join('\n')], {type:'text/csv'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a'); a.href=url; a.download='routine-history.csv';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    state.modalStatus = 'Downloaded '+t.body.length+' day(s).'; render();
+  }
+  async function copyForSheets(){
+    state.modalStatus = 'Preparing…'; render();
+    var rows = await gatherAllDays();
+    var t = buildTable(rows);
+    var lines = [t.header.map(toTsvField).join('\t')].concat(t.body.map(function(r){return r.map(toTsvField).join('\t');}));
+    try{
+      await navigator.clipboard.writeText(lines.join('\n'));
+      state.modalStatus = 'Copied '+t.body.length+' day(s) — paste into a sheet.';
+    }catch(e){
+      state.modalStatus = 'Could not access clipboard — try Download CSV instead.';
+    }
+    render();
+  }
+
+  /* ---------- sync modal actions ---------- */
+  async function connectSync(){
+    var input = document.getElementById('sync-link-input');
+    var link = input ? input.value.trim() : '';
+    var parsed = parseFormLink(link);
+    if(!parsed){
+      state.modalStatus = "Couldn't read that link — make sure it's the full pre-filled link with all 7 placeholders filled in.";
+      render(); return;
+    }
+    state.syncConfig = parsed;
+    await saveSyncConfig(parsed);
+    state.modalStatus = 'Connected. New checks will now log automatically.';
+    render();
+  }
+  async function disconnectSync(){
+    state.syncConfig = null;
+    await clearSyncConfig();
+    state.modalStatus = 'Disconnected.';
+    render();
+  }
+  function sendTestEntry(){
+    if(!state.syncConfig){ state.modalStatus='Connect first.'; render(); return; }
+    logEvent({date:dateKey(new Date()), time:timeNow(new Date()), phase:'Test', task:'Connection test', schedtime:'', status:'Sent', type:'Test'});
+    state.modalStatus = 'Test entry sent — check your sheet in a few seconds.';
+    render();
+  }
+
+  /* ---------- render ---------- */
+  function renderArc(){
+    var segs = ARC_SEGMENTS.map(function(s){
+      var widthPct = (s.to-s.from)/1440*100;
+      return '<div class="arc-seg" style="width:'+widthPct+'%;background:'+s.color+'"></div>';
+    }).join('');
+    var now = new Date();
+    var nowMin = now.getHours()*60+now.getMinutes();
+    var nowPct = nowMin/1440*100;
+    var isToday = sameDate(state.currentDate, now);
+    var marker = isToday ? '<div class="arc-now" style="left:'+nowPct+'%"></div>' : '';
+    return '<div class="arc">'+segs+marker+'</div>'+
+      '<div class="arc-ticks"><span>12am</span><span>6am</span><span>12pm</span><span>6pm</span><span>12am</span></div>';
+  }
+
+  function renderTaskRow(task){
+    var checked = !!state.dayData.checks[task.id];
+    var extraBlock = '';
+    if(task.schedulable){
+      var items = state.dayData.extra;
+      var list = items.length ? '<ul class="extra-list">'+items.map(function(it){
+        return '<li class="extra-item '+(it.done?'done':'')+'">'+
+          '<span class="checkbox-wrap"><input type="checkbox" id="chk-extra-'+it.id+'" data-extra-check="'+it.id+'" '+(it.done?'checked':'')+'><span class="box" style="--acc:var(--work)"></span></span>'+
+          '<label class="task-text" for="chk-extra-'+it.id+'">'+escapeHtml(it.text)+'</label>'+
+          '<button class="extra-del" data-del-extra="'+it.id+'" aria-label="Delete task">×</button>'+
+          '</li>';
+      }).join('')+'</ul>' : '<div class="today-tasks-empty">No extra tasks added for today yet.</div>';
+      extraBlock = '<div class="today-tasks">'+list+
+        '<div class="add-extra">'+
+        '<input type="text" id="extra-input-'+task.id+'" data-extra-input="'+task.id+'" placeholder="Add a task for today…">'+
+        '<button data-add-extra="'+task.id+'">Add</button>'+
+        '</div></div>';
+    }
+    return '<div class="task-item '+(checked?'done':'')+'">'+
+      '<label class="task-row">'+
+        '<span class="task-time">'+task.start+'–'+task.end+'</span>'+
+        '<span class="checkbox-wrap"><input type="checkbox" data-fixed-check="'+task.id+'" '+(checked?'checked':'')+'><span class="box"></span></span>'+
+        '<span class="task-text">'+escapeHtml(task.label)+'</span>'+
+      '</label>'+
+      extraBlock+
+      '</div>';
+  }
+
+  function renderDayView(){
+    if(state.loading){
+      return '<div class="loading">Loading your routine…</div>';
+    }
+    var html = '<div class="day-view">';
+    PHASES.forEach(function(phase){
+      var tasks = SCHEDULE.filter(function(t){return t.phase===phase;});
+      var range = tasks[0].start+'–'+tasks[tasks.length-1].end;
+      html += '<div class="phase">'+
+        '<div class="phase-head"><span class="phase-dot" style="background:'+PHASE_COLOR[phase]+'"></span>'+
+        '<span class="phase-name">'+phase+'</span><span class="phase-range">'+range+'</span></div>';
+      tasks.forEach(function(t){ html += renderTaskRow(t); });
+      html += '</div>';
+    });
+    html += '<div class="reset-row"><button class="reset-link" id="resetDay">Clear this day</button></div>';
+    html += '</div>';
+    return html;
+  }
+
+  function renderWeekView(){
+    if(state.loading || !state.weekData){
+      return '<div class="loading">Crunching this week\u2019s numbers…</div>';
+    }
+    var wd = state.weekData;
+    var endDate = new Date(wd.start); endDate.setDate(wd.start.getDate()+6);
+    var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var title = wd.start.getDate()+' '+months[wd.start.getMonth()]+' \u2013 '+endDate.getDate()+' '+months[endDate.getMonth()];
+
+    var cols = wd.days.map(function(d, i){
+      var height = d.pct===null ? 2 : Math.max(4, d.pct);
+      var pctLabel = d.pct===null ? '—' : d.pct+'%';
+      return '<div class="week-col '+(d.isToday?'is-today':'')+' '+(d.isFuture?'future':'')+'">'+
+        '<div class="week-bar-track"><div class="week-bar" style="height:'+height+'%"></div></div>'+
+        '<div class="week-pct">'+pctLabel+'</div>'+
+        '<div class="week-day">'+DAY_LABELS[i]+'</div>'+
+        '</div>';
+    }).join('');
+
+    var rows = wd.taskCounts.map(function(t){
+      var pct = t.elapsed? (t.count/t.elapsed*100) : 0;
+      return '<div class="c-row">'+
+        '<div class="c-label">'+escapeHtml(t.label)+'</div>'+
+        '<div class="c-track"><div class="c-fill" style="width:'+pct+'%"></div></div>'+
+        '<div class="c-count">'+t.count+'/'+t.elapsed+'</div>'+
+        '</div>';
+    }).join('');
+
+    return '<div class="week-view">'+
+      '<div class="week-header">'+
+        '<button class="nav-btn" id="prevWeek" aria-label="Previous week" style="color:var(--text);border-color:var(--line)">\u2039</button>'+
+        '<span class="week-title">'+title+'</span>'+
+        '<button class="nav-btn" id="nextWeek" aria-label="Next week" style="color:var(--text);border-color:var(--line)">\u203a</button>'+
+      '</div>'+
+      '<div class="week-cols">'+cols+'</div>'+
+      '<div class="consistency">'+
+        '<div class="consistency-title">Task consistency this week</div>'+
+        rows+
+      '</div>'+
+    '</div>';
+  }
+
+  function renderModal(){
+    if(!state.modal) return '';
+    if(state.modal==='export'){
+      return '<div class="modal-overlay" id="modalOverlay"><div class="modal">'+
+        '<h3>Export your history</h3>'+
+        '<p>Pulls every day you\u2019ve tracked into one table \u2014 paste it into a sheet or open it as CSV.</p>'+
+        '<div class="modal-actions">'+
+        '<button class="modal-btn primary" id="copySheets">Copy for Sheets (paste-ready)</button>'+
+        '<button class="modal-btn" id="downloadCsv">Download as CSV</button>'+
+        '</div><div class="modal-status">'+escapeHtml(state.modalStatus)+'</div>'+
+        '<button class="modal-close" id="closeModal">Close</button></div></div>';
+    }
+    if(state.modal==='sync'){
+      if(state.syncConfig){
+        return '<div class="modal-overlay" id="modalOverlay"><div class="modal">'+
+          '<h3>Sheet sync</h3>'+
+          '<div class="connected-badge"><span class="sync-dot"></span> Connected</div>'+
+          '<p>Every check and task you add now sends a row to your Google Sheet automatically.</p>'+
+          '<div class="modal-actions">'+
+          '<button class="modal-btn" id="sendTest">Send a test entry</button>'+
+          '<button class="modal-btn danger" id="disconnectSync">Disconnect</button>'+
+          '</div><div class="modal-status">'+escapeHtml(state.modalStatus)+'</div>'+
+          '<button class="modal-close" id="closeModal">Close</button></div></div>';
+      }
+      return '<div class="modal-overlay" id="modalOverlay"><div class="modal">'+
+        '<h3>Connect to a Sheet</h3>'+
+        '<p>Paste the pre-filled link from your Google Form (see the setup steps) and this wires itself up.</p>'+
+        '<input type="text" id="sync-link-input" placeholder="https://docs.google.com/forms/d/e/.../viewform?...">'+
+        '<div class="modal-actions"><button class="modal-btn primary" id="connectSync">Connect</button></div>'+
+        '<div class="modal-status">'+escapeHtml(state.modalStatus)+'</div>'+
+        '<button class="modal-close" id="closeModal">Close</button></div></div>';
+    }
+    return '';
+  }
+
+  function render(){
+    var stats = computeTodayStats();
+    var isToday = sameDate(state.currentDate, new Date());
+    var html =
+      '<div class="hero">'+
+        '<div class="hero-top">'+
+          '<div class="date-nav">'+
+            '<button class="nav-btn" id="prevDay" aria-label="Previous day">\u2039</button>'+
+            '<span class="date-label">'+fmtHeaderDate(state.currentDate)+'</span>'+
+            '<button class="nav-btn" id="nextDay" aria-label="Next day">\u203a</button>'+
+          '</div>'+
+          '<div class="hero-actions">'+
+            (isToday?'':'<button class="util-pill" id="todayBtn">Today</button>')+
+            '<button class="util-pill" id="openExport">Export</button>'+
+            '<button class="util-pill" id="openSync"><span class="sync-dot '+(state.syncConfig?'on':'')+'"></span>Sync</button>'+
+          '</div>'+
+        '</div>'+
+        renderArc()+
+        '<div class="hero-stat"><span class="num">'+(state.loading?'—':stats.pct+'%')+'</span>'+
+        '<span class="sub">'+(state.loading?'loading…':stats.done+' of '+stats.total+' tasks done')+'</span></div>'+
+      '</div>'+
+      '<div class="tabs">'+
+        '<button class="tab '+(state.view==='day'?'active':'')+'" id="tabDay">Today</button>'+
+        '<button class="tab '+(state.view==='week'?'active':'')+'" id="tabWeek">This week</button>'+
+      '</div>'+
+      (state.view==='day' ? renderDayView() : renderWeekView()) +
+      renderModal();
+
+    document.getElementById('app').innerHTML = html;
+  }
+
+  var app = document.getElementById('app');
+
+  app.addEventListener('change', function(e){
+    var t = e.target;
+    if(t.matches('[data-fixed-check]')) toggleFixed(t.getAttribute('data-fixed-check'));
+    else if(t.matches('[data-extra-check]')) toggleExtra(t.getAttribute('data-extra-check'));
+  });
+
+  app.addEventListener('click', function(e){
+    var el;
+    if(el = e.target.closest('#prevDay')) return changeDay(-1);
+    if(el = e.target.closest('#nextDay')) return changeDay(1);
+    if(el = e.target.closest('#todayBtn')) return goToday();
+    if(el = e.target.closest('#tabDay')) return switchView('day');
+    if(el = e.target.closest('#tabWeek')) return switchView('week');
+    if(el = e.target.closest('#prevWeek')) return changeWeek(-1);
+    if(el = e.target.closest('#nextWeek')) return changeWeek(1);
+    if(el = e.target.closest('#resetDay')) return resetDay();
+    if(el = e.target.closest('[data-add-extra]')) return addExtra(el.getAttribute('data-add-extra'));
+    if(el = e.target.closest('[data-del-extra]')) return deleteExtra(el.getAttribute('data-del-extra'));
+    if(el = e.target.closest('#openExport')){ state.modal='export'; state.modalStatus=''; return render(); }
+    if(el = e.target.closest('#openSync')){ state.modal='sync'; state.modalStatus=''; return render(); }
+    if(el = e.target.closest('#closeModal')){ state.modal=null; return render(); }
+    if(e.target.id==='modalOverlay'){ state.modal=null; return render(); }
+    if(el = e.target.closest('#downloadCsv')) return downloadCsv();
+    if(el = e.target.closest('#copySheets')) return copyForSheets();
+    if(el = e.target.closest('#connectSync')) return connectSync();
+    if(el = e.target.closest('#disconnectSync')) return disconnectSync();
+    if(el = e.target.closest('#sendTest')) return sendTestEntry();
+  });
+
+  app.addEventListener('keydown', function(e){
+    if(e.key==='Enter' && e.target.matches('[data-extra-input]')){
+      e.preventDefault();
+      addExtra(e.target.getAttribute('data-extra-input'));
+    }
+  });
+
+  (async function boot(){
+    state.syncConfig = await loadSyncConfig();
+    await initDay();
+  })();
+})();
+</script>
+</body>
+</html>
